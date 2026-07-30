@@ -28,8 +28,13 @@ st.markdown("""
         background: linear-gradient(180deg, #0f172a 0%, #1e1b4b 100%) !important;
         border-right: 1px solid #312e81 !important;
     }
-    [data-testid="stSidebar"] *, [data-testid="stSidebar"] p, [data-testid="stSidebar"] div, [data-testid="stSidebar"] span, [data-testid="stSidebar"] label {
-        color: #f8fafc !important;
+    [data-testid="stSidebar"] p, [data-testid="stSidebar"] div:not([data-baseweb="select"] *) {
+        color: #f8fafc;
+    }
+    [data-testid="stSidebar"] label, [data-testid="stSidebar"] label p, [data-testid="stSidebar"] label span {
+        color: #38bdf8 !important;
+        font-weight: 700 !important;
+        font-size: 0.95rem !important;
     }
     [data-testid="stSidebarNav"] a {
         background: rgba(255, 255, 255, 0.08) !important;
