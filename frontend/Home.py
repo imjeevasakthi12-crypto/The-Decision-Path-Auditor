@@ -1,4 +1,5 @@
 import streamlit as st
+import requests
 import json
 import time
 import io
@@ -6,6 +7,20 @@ import csv
 import hashlib
 import uuid
 import datetime
+import sys
+import os
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
+from sidebar_utils import render_sidebar_translator, TRANSLATIONS
+from pdf_generator import generate_pdf_report, generate_csv_logs
+
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+
+
+
 
 def generate_pdf_report(domain, subject, fields, tools, outcome, risk, session_id, hash_val, timestamp):
     try:
@@ -80,6 +95,10 @@ st.set_page_config(
     layout="wide",
     page_icon="🛡️"
 )
+
+# Authentication Barrier
+if "token" not in st.session_state:
+    st.switch_page("pages/Login.py")
 
 # Multi-Language Translation Dictionary
 TRANSLATIONS = {
@@ -416,38 +435,59 @@ st.markdown("""
     .fc-green { background: linear-gradient(90deg, #16a34a, #10b981); }
     .fc-arrow { text-align: center; font-size: 20px; font-weight: bold; color: #2563eb; margin: 2px 0; }
 
-    /* Custom Report Card Styling */
+    /* Custom Report Card & Tool Pill Styling */
     .report-card {
-        background: white;
-        border-radius: 12px;
-        padding: 20px;
-        border: 1px solid #cbd5e1;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
-        margin-bottom: 20px;
+        background: white !important;
+        border-radius: 12px !important;
+        padding: 22px !important;
+        border: 1px solid #cbd5e1 !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.04) !important;
+        margin-bottom: 20px !important;
         color: #0f172a !important;
     }
     .report-card-title {
-        font-size: 1.15rem;
-        font-weight: 800;
-        margin-bottom: 12px;
-        padding-bottom: 6px;
-        border-bottom: 2px solid #e2e8f0;
+        font-size: 1.15rem !important;
+        font-weight: 800 !important;
+        margin-bottom: 14px !important;
+        padding-bottom: 8px !important;
+        border-bottom: 2px solid #e2e8f0 !important;
+        letter-spacing: 0.02em !important;
     }
     .text-dark {
         color: #0f172a !important;
-        font-size: 0.95rem;
-        line-height: 1.6;
+        font-size: 0.95rem !important;
+        line-height: 2.2 !important;
     }
-    .text-dark * {
-        color: #0f172a;
+    .text-dark b, .text-dark p, .text-dark div {
+        color: #0f172a !important;
     }
+    
+    /* Code Pill Tag High-Contrast Fix for Tool & API Key Labels */
+    code, .report-card code, .text-dark code, div[data-testid="stCode"] code {
+        background-color: #e0e7ff !important;
+        color: #3730a3 !important;
+        padding: 4px 10px !important;
+        border-radius: 6px !important;
+        font-weight: 700 !important;
+        font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace !important;
+        border: 1px solid #c7d2fe !important;
+        display: inline-block !important;
+        margin: 2px 4px !important;
+        font-size: 0.88rem !important;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
+    }
+    
+    /* Success & Validation Badges */
     .badge-pass {
-        background-color: #dcfce7;
+        background-color: #dcfce7 !important;
         color: #15803d !important;
-        padding: 4px 10px;
-        border-radius: 6px;
-        font-weight: 700;
-        font-size: 0.85rem;
+        padding: 4px 10px !important;
+        border-radius: 6px !important;
+        font-weight: 700 !important;
+        font-size: 0.85rem !important;
+        border: 1px solid #bbf7d0 !important;
+        display: inline-block !important;
+        margin-left: 6px !important;
     }
     
     #MainMenu {visibility: hidden;}
@@ -473,14 +513,8 @@ st.sidebar.markdown("""
 <hr style="border: 0; height: 1px; background: rgba(255,255,255,0.1); margin-bottom: 15px;">
 """, unsafe_allow_html=True)
 
-# Language Selector
-selected_lang = st.sidebar.selectbox(
-    TRANSLATIONS[st.session_state.lang]["lang_select"],
-    options=["English", "Tamil", "Hindi", "French", "German", "Spanish"],
-    index=["English", "Tamil", "Hindi", "French", "German", "Spanish"].index(st.session_state.lang)
-)
-st.session_state.lang = selected_lang
-t = TRANSLATIONS[st.session_state.lang]
+# Translator option rendered in left sidebar
+t = render_sidebar_translator()
 
 # Main Header Banner
 st.title(t["title"])
@@ -789,6 +823,27 @@ if st.session_state.page == "input":
                 session_id = f"DEC-{time.strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
                 now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 
+                # Try calling backend FastAPI endpoint to record in PostgreSQL/SQLite DB
+                try:
+                    api_resp = requests.post(
+                        f"{BACKEND_URL}/api/agent/execute_trace",
+                        json={
+                            "user_id": "AUDITOR_USER",
+                            "prompt": f"Audit Subject: {domain_payload.get('subject')} in Domain: {st.session_state.domain}",
+                            "domain": st.session_state.domain,
+                            "fields": domain_payload.get("fields", [])
+                        },
+                        timeout=3
+                    )
+                    if api_resp.status_code == 200:
+                        data = api_resp.json()
+                        if "session_id" in data:
+                            session_id = data["session_id"]
+                        if "hash_value" in data:
+                            hash_val_api = data["hash_value"]
+                except Exception:
+                    pass
+
                 # Compute real cryptographic SHA-256 hash over input parameters
                 hash_source = json.dumps({
                     "session_id": session_id,
@@ -899,8 +954,8 @@ elif st.session_state.page == "output":
     
     # Header Banner
     st.markdown(f"""
-    <div style="background: linear-gradient(90deg, #0f172a 0%, #1e1b4b 100%); padding: 22px 28px; border-radius: 12px; color: white; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
+    <div style="background: linear-gradient(90deg, #0f172a 0%, #1e1b4b 100%); padding: 22px 28px; border-radius: 12px; color: white; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
             <div>
                 <h2 style="margin: 0; color: white; font-size: 1.8rem; font-weight: 800;">{t['output_title']} ({st.session_state.domain.upper()})</h2>
                 <p style="margin: 6px 0 0 0; color: #94a3b8; font-size: 0.95rem;">
@@ -915,6 +970,54 @@ elif st.session_state.page == "output":
         </div>
     </div>
     """, unsafe_allow_html=True)
+
+    # Quick PDF & CSV Download Action Bar (Responsive across all laptops & mobile devices)
+    col_dl_pdf, col_dl_csv = st.columns([1, 1])
+    
+    with col_dl_pdf:
+        pdf_bytes_top = generate_pdf_report(
+            domain=st.session_state.domain,
+            subject=inputs.get("subject", "Unspecified Subject"),
+            fields=fields,
+            tools=tools,
+            outcome=outcome,
+            risk=inputs.get("risk", "LOW"),
+            session_id=session_id,
+            hash_val=hash_val,
+            timestamp=timestamp
+        )
+        st.download_button(
+            label="📥 DOWNLOAD PDF AUDIT REPORT",
+            data=pdf_bytes_top,
+            file_name=f"Audit_Report_{session_id}.pdf",
+            mime="application/pdf",
+            type="primary",
+            use_container_width=True,
+            key="btn_dl_pdf_top"
+        )
+
+    with col_dl_csv:
+        csv_bytes_top = generate_csv_logs(
+            domain=st.session_state.domain,
+            subject=inputs.get("subject", "Unspecified Subject"),
+            fields=fields,
+            tools=tools,
+            outcome=outcome,
+            risk=inputs.get("risk", "LOW"),
+            session_id=session_id,
+            hash_val=hash_val,
+            timestamp=timestamp
+        )
+        st.download_button(
+            label="📊 EXPORT AUDIT LOGS (CSV)",
+            data=csv_bytes_top,
+            file_name=f"Audit_Logs_{session_id}.csv",
+            mime="text/csv",
+            use_container_width=True,
+            key="btn_dl_csv_top"
+        )
+        
+    st.markdown("<br>", unsafe_allow_html=True)
     
     # Render Section 1 Fields Dynamically
     fields_html = "".join([f"• <b>{lbl}</b>: {val}<br>" for lbl, val in fields])
@@ -969,11 +1072,11 @@ elif st.session_state.page == "output":
         st.markdown(f"""
         <div class="report-card">
             <div class="report-card-title" style="color: #7c3aed;">{t['sec4']}</div>
-            <div class="text-dark">
-                • <b>Tool 1</b>: <code>{tools[0]}</code> ➔ Status: <span class="badge-pass">{t['status_ok']}</span><br>
-                • <b>Tool 2</b>: <code>{tools[1]}</code> ➔ Status: <span class="badge-pass">{t['status_ok']}</span><br>
-                • <b>Tool 3</b>: <code>{tools[2]}</code> ➔ Risk: {inputs.get('risk')} <span class="badge-pass">{t['status_ok']}</span><br>
-                • <b>Tool 4</b>: <code>{tools[3]}</code> ➔ Action: {outcome} <span class="badge-pass">{t['status_ok']}</span>
+            <div class="text-dark" style="line-height: 2.3;">
+                • <b>Tool 1</b>: <code>{tools[0]}</code> &nbsp;➔&nbsp; <b>Status</b>: <span class="badge-pass">{t['status_ok']}</span><br>
+                • <b>Tool 2</b>: <code>{tools[1]}</code> &nbsp;➔&nbsp; <b>Status</b>: <span class="badge-pass">{t['status_ok']}</span><br>
+                • <b>Tool 3</b>: <code>{tools[2]}</code> &nbsp;➔&nbsp; <b>Risk</b>: <b style="color: #2563eb;">{inputs.get('risk')}</b> &nbsp;<span class="badge-pass">{t['status_ok']}</span><br>
+                • <b>Tool 4</b>: <code>{tools[3]}</code> &nbsp;➔&nbsp; <b>Action</b>: <b style="color: #16a34a;">{outcome}</b> &nbsp;<span class="badge-pass">{t['status_ok']}</span>
             </div>
         </div>
         """, unsafe_allow_html=True)

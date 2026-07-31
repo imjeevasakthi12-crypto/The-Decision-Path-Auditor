@@ -1,6 +1,16 @@
 import streamlit as st
 import requests
 import os
+import sys
+import time
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
+from sidebar_utils import render_sidebar_translator
+
 
 st.set_page_config(page_title="Auditor Login", page_icon="🔒", layout="centered")
 
@@ -155,20 +165,22 @@ st.sidebar.markdown("""
 <hr style="border: 0; height: 1px; background: rgba(255,255,255,0.1); margin-bottom: 20px;">
 """, unsafe_allow_html=True)
 
-st.markdown("""
+# Translator option rendered in left sidebar
+t = render_sidebar_translator()
+
+st.markdown(f"""
 <div class="login-card">
-    <div class="login-title">🔒 Enterprise Auditor Login</div>
-    <div class="login-subtitle">Sign in to access AI governance logs & audit metrics</div>
+    <div class="login-title">{t.get('login_title', '🔒 Enterprise Auditor Login')}</div>
+    <div class="login-subtitle">{t.get('login_sub', 'Sign in to access AI governance logs & audit metrics')}</div>
 </div>
 """, unsafe_allow_html=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
 
 if "token" in st.session_state:
-    st.success("You are securely logged in.")
-    if st.button("Logout", type="primary"):
-        del st.session_state["token"]
-        st.rerun()
+    st.success("You are securely logged in. Redirecting to Home...")
+    time.sleep(1) # short pause for visual feedback
+    st.switch_page("Home.py")
 else:
     with st.form("login_form"):
         username = st.text_input("Username", value="admin")
@@ -183,9 +195,11 @@ else:
             if res.status_code == 200:
                 st.session_state["token"] = res.json()["access_token"]
                 st.success("Logged in successfully!")
-                st.rerun()
+                time.sleep(0.5)
+                st.switch_page("Home.py")
             else:
                 # Mock token for demo ease if backend auth isn't populated
                 st.session_state["token"] = "demo_token_123"
                 st.success("Logged in successfully (Demo Mode)!")
-                st.rerun()
+                time.sleep(0.5)
+                st.switch_page("Home.py")

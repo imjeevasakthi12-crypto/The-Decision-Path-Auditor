@@ -1,8 +1,23 @@
 import streamlit as st
 import requests
 import os
+import sys
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
+from sidebar_utils import render_sidebar_translator
+from pdf_generator import generate_pdf_report, generate_csv_logs
+
+
 
 st.set_page_config(page_title="Decision Timeline", page_icon="⏱️", layout="wide")
+
+# Authentication Barrier
+if "token" not in st.session_state:
+    st.switch_page("pages/Login.py")
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 
@@ -135,14 +150,15 @@ st.markdown("""
         font-weight: 600 !important;
     }
 
-    /* Code block contrast */
-    pre, code, div[data-testid="stCode"] {
-        color: #0f172a !important;
-        background-color: #f1f5f9 !important;
-        border: 1px solid #cbd5e1 !important;
-    }
-    div[data-testid="stCode"] * {
-        color: #0f172a !important;
+    /* Code block contrast & pill styling */
+    code, div[data-testid="stCode"] code {
+        color: #3730a3 !important;
+        background-color: #e0e7ff !important;
+        border: 1px solid #c7d2fe !important;
+        font-weight: 700 !important;
+        padding: 4px 10px !important;
+        border-radius: 6px !important;
+        font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace !important;
     }
 
     .page-header {
@@ -185,10 +201,13 @@ st.sidebar.markdown("""
 <hr style="border: 0; height: 1px; background: rgba(255,255,255,0.1); margin-bottom: 20px;">
 """, unsafe_allow_html=True)
 
-st.markdown("""
+# Translator option rendered in left sidebar
+t = render_sidebar_translator()
+
+st.markdown(f"""
 <div class="page-header">
-    <h1>⏱️ Decision Timeline Reconstructor</h1>
-    <p style="margin: 5px 0 0 0; color: #666;">Step-by-step cryptographic audit reconstruction for any AI session ID</p>
+    <h1>{t.get('timeline_title', '⏱️ Decision Timeline Reconstructor')}</h1>
+    <p style="margin: 5px 0 0 0; color: #666;">{t.get('timeline_sub', 'Step-by-step cryptographic audit reconstruction for any AI session ID')}</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -205,11 +224,23 @@ tools = user_inputs.get("tools", ["Verification API", "Validation Model", "Risk 
 outcome = user_inputs.get("outcome", "APPROVED")
 risk = user_inputs.get("risk", "LOW")
 
+api_fetched_log = None
+if session_id:
+    try:
+        api_resp = requests.get(f"{BACKEND_URL}/api/audit/logs/{session_id}", timeout=3)
+        if api_resp.status_code == 200:
+            api_fetched_log = api_resp.json()
+    except Exception:
+        pass
+
 if reconstruct or session_id or user_inputs:
     st.markdown('<div class="timeline-container">', unsafe_allow_html=True)
     
     st.subheader("1. Customer Request Prompt & Details")
-    if fields:
+    if api_fetched_log:
+        st.success(f"✔ **Backend Database Record Found for Session `{session_id}`**")
+        st.info(f"**Redacted Prompt**: {api_fetched_log.get('original_prompt')} | **Decision**: {api_fetched_log.get('final_decision')} | **SHA256**: {api_fetched_log.get('hash_value')}")
+    elif fields:
         field_str = " | ".join([f"{k}: {v}" for k, v in fields])
         st.info(f"**Subject**: {subject} | **Domain**: {st.session_state.get('domain', 'Loan Approval')} | **Fields**: {field_str}")
     elif session_id:
@@ -242,6 +273,29 @@ if reconstruct or session_id or user_inputs:
             st.error(f"Decision: **{outcome}** | Confidence: 95% | Policy Criteria Triggered Risk Mitigation")
         
         st.subheader("4. SHA-256 Tamper-Proof Cryptographic Signature")
-        st.code("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", language="bash")
+        sha_val = api_fetched_log.get("hash_value") if api_fetched_log else "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        st.code(sha_val, language="bash")
+        
+        st.subheader("5. Official Governance Audit PDF Report")
+        pdf_bytes = generate_pdf_report(
+            domain=st.session_state.get("domain", "Loan Approval"),
+            subject=active_sub,
+            fields=fields,
+            tools=tools,
+            outcome=outcome,
+            risk=risk,
+            session_id=session_id if session_id else "DEC-AUDIT-001",
+            hash_val=sha_val,
+            timestamp=api_fetched_log.get("timestamp") if api_fetched_log else None
+        )
+        st.download_button(
+            label="📥 Download Official Audit PDF Report",
+            data=pdf_bytes,
+            file_name=f"Audit_Report_{session_id if session_id else 'Session'}.pdf",
+            mime="application/pdf",
+            type="primary",
+            use_container_width=True,
+            key="btn_dl_pdf_timeline"
+        )
         
     st.markdown('</div>', unsafe_allow_html=True)

@@ -1,15 +1,36 @@
 # 🛡️ Enterprise Decision Path Auditor
 
-A production-ready AI governance application built to capture, redact, and securely store the complete reasoning path of AI agents.
+A production-ready AI governance application built to capture, redact, and securely store the complete reasoning path of AI agents across enterprise industries.
+
+---
+
+## 🔑 API Connection & Setup Guide
+
+For detailed instructions on configuring API Keys (`OPENAI_API_KEY`, `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`), connecting the FastAPI REST backend to the Streamlit frontend, and testing API endpoints, consult the **[API Setup Guide](API_SETUP_GUIDE.md)**.
+
+### Quick Start API Key Setup
+1. Copy `.env.example` to `.env`:
+   ```bash
+   cp .env.example .env
+   ```
+2. Open `.env` and set your API keys:
+   ```env
+   OPENAI_API_KEY=sk-proj-your-openai-api-key-here
+   GEMINI_API_KEY=AIzaSyYourGeminiApiKeyHere
+   PORT=8501
+   BACKEND_URL=http://localhost:8000
+   DATABASE_URL=sqlite:///./audit_logs.db
+   SECRET_KEY=super-secret-enterprise-key-do-not-use-in-prod
+   ```
 
 ---
 
 ## 🏗️ Architecture Overview
 
-- **Frontend**: Streamlit (Light corporate theme, custom card grid layout, AI workflow diagrams)
+- **Frontend**: Streamlit (Light corporate theme, multi-language sidebar translator, custom card grid layout, AI workflow diagrams)
 - **Backend**: FastAPI (RESTful APIs, modular router structure)
 - **Database**: PostgreSQL (SQLAlchemy ORM) / SQLite (Local fallback)
-- **Security & PII**: JWT Authentication, RBAC, SHA-256 Tamper-evident Hashing, Microsoft Presidio PII Redaction
+- **Security & PII**: JWT Authentication, RBAC, SHA-256 Tamper-evident Hashing, Presidio PII Redaction
 - **Integration**: Google Stitch MCP Design Integration
 
 ---
@@ -19,7 +40,7 @@ A production-ready AI governance application built to capture, redact, and secur
 ### 1. Single Command Local Run
 To run both the backend and frontend simultaneously in local development:
 ```bash
-.\venv\Scripts\python run_app.py
+python run_app.py
 ```
 - **Backend API**: `http://localhost:8000`
 - **Frontend Dashboard**: `http://localhost:8501`
@@ -79,5 +100,5 @@ docker-compose down
 ## 🧪 Verification & Testing
 To run the automated suite:
 ```bash
-.\venv\Scripts\python -m pytest tests/
+python -m pytest tests/
 ```

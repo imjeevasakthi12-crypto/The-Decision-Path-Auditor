@@ -1,6 +1,7 @@
 fastapi
 uvicorn
 sqlalchemy
+psycopg2-binary
 pydantic>=2.7.4
 pydantic-settings
 python-multipart
@@ -17,3 +18,4 @@ pytest
 requests
 python-dotenv
 reportlab
+https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
